@@ -18,7 +18,7 @@ document.getElementById("run-pipeline").addEventListener("click", async () => {
 
   try {
     // Send the pipeline JSON to the backend API
-    const response = await fetch("http://localhost:8000/api/run-pipeline", {
+    const response = await fetch("http://localhost:8080/api/run-pipeline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(pipeline),

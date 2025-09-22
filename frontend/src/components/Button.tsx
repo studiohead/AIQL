@@ -1,36 +1,27 @@
 import React from "react";
-import { Button as MantineButton, ButtonProps as MantineButtonProps } from "@mantine/core";
 
-interface ButtonProps extends Omit<MantineButtonProps, "variant"> {
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
   variant?: "primary" | "secondary" | "danger";
+  className?: string;
 }
 
-const variantMap: Record<string, MantineButtonProps["variant"]> = {
-  primary: "filled",
-  secondary: "default",
-  danger: "filled",
-};
-
-const colorMap: Record<string, string> = {
-  primary: "blue",
-  secondary: "gray",
-  danger: "red",
-};
-
-const Button: React.FC<ButtonProps> = ({
+const Button = ({
   children,
   variant = "primary",
-  color,
+  className,
   ...props
-}) => {
-  const mantineVariant = variantMap[variant] || "filled";
-  const mantineColor = color || colorMap[variant] || "blue";
+}: ButtonProps): JSX.Element => {
+  const baseClass = "button";
+  const variantClass = `button--${variant}`;
+  const combinedClassName = [baseClass, variantClass, className]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <MantineButton variant={mantineVariant} color={mantineColor} {...props}>
+    <button className={combinedClassName} {...props}>
       {children}
-    </MantineButton>
+    </button>
   );
 };
 

@@ -4,8 +4,8 @@
 set -e
 
 # Start the backend FastAPI app using uvicorn in background
-echo "Starting backend at http://localhost:8000"
-uvicorn app:app --host 0.0.0.0 --port 8000 --reload &
+echo "Starting backend at http://localhost:8888"
+uvicorn app:app --host 0.0.0.0 --port 8888 --reload &
 BACKEND_PID=$!
 
 # Start the frontend Vite dev server in background

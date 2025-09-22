@@ -31,7 +31,7 @@ const PipelineRunner: React.FC<PipelineRunnerProps> = ({
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:8000/api/run-pipeline", {
+      const response = await fetch("http://localhost:8888/api/run-pipeline", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(pipelineJson),

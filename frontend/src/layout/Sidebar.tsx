@@ -1,4 +1,6 @@
 import React from "react";
+import Button from "../components/Button"; // Adjust path if needed
+import { PromptUIResponse } from "../utils/mockAI";
 
 interface SidebarProps {
   uiConfig: PromptUIResponse | null;
@@ -93,22 +95,13 @@ const Sidebar: React.FC<SidebarProps> = ({ uiConfig, userInputs, onChange, onSub
       })}
 
       {/* Submit button */}
-      <button
+      <Button
+        variant="primary"
+        style={{ marginTop: "1rem", width: "100%", padding: "0.75rem" }}
         onClick={onSubmit}
-        style={{
-          marginTop: "1rem",
-          width: "100%",
-          padding: "0.75rem",
-          backgroundColor: "#1a73e8",
-          color: "white",
-          borderRadius: 4,
-          border: "none",
-          cursor: "pointer",
-          fontSize: "1rem",
-        }}
       >
         Submit
-      </button>
+      </Button>
     </aside>
   );
 };

@@ -3,7 +3,7 @@ export interface PipelineResponse {
   [key: string]: any; // allow additional fields if any
 }
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = "http://localhost:8888/api";
 
 export async function runPipeline(pipelineJson: object): Promise<PipelineResponse> {
   const response = await fetch(`${API_BASE_URL}/run-pipeline`, {
