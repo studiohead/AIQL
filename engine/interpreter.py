@@ -116,7 +116,7 @@ class AIQLInterpreter:
             features = self.context.get(input_var, {})
             predictions = {}
             for cust_id in features:
-                # fake churn probability
+                # fake Cause Probability
                 predictions[cust_id] = 0.2 + 0.1 * (hash(cust_id) % 5)  # 0.2 to 0.6 approx
 
             # Assuming single output 'churn_probabilities'

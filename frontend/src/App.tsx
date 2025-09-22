@@ -31,9 +31,18 @@ const App: React.FC = () => {
     if (userPrompt.toLowerCase().includes("churn")) {
       setTimeout(() => {
         setPipelineResult({
-          churn_probability: 0.9,
+          cause_probability: 0.9,
           confidence_score: 0.9,
           explanation: "High risk based on recent purchase behavior",
+        });
+      }, 1000);
+    }
+    if (userPrompt.toLowerCase().includes("fire")) {
+      setTimeout(() => {
+        setPipelineResult({
+          cause_probability: 0.9,
+          confidence_score: 0.9,
+          explanation: "Protocol section 2.6 violation",
         });
       }, 1000);
     }

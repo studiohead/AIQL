@@ -23,7 +23,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onPromptSubmit, userPrompt, pipel
         {pipelineResult && (
           <div style={{ fontSize: "1.2rem" }}>
             <p>
-              <strong>Churn Probability:</strong> {(pipelineResult.churn_probability * 100).toFixed(2)}%
+              <strong>Cause Probability:</strong> {(pipelineResult.cause_probability * 100).toFixed(2)}%
             </p>
             <p>
               <strong>Confidence Score:</strong> {(pipelineResult.confidence_score * 100).toFixed(2)}%

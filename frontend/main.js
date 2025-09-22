@@ -49,16 +49,16 @@ function renderResults(result) {
     return;
   }
 
-  // Churn Probability Bar
-  if (result.churn_probability !== undefined) {
+  // Cause Probability Bar
+  if (result.cause_probability !== undefined) {
     const bar = document.createElement("div");
-    bar.innerHTML = `<strong>Churn Probability:</strong> ${(result.churn_probability * 100).toFixed(2)}%`;
+    bar.innerHTML = `<strong>Cause Probability:</strong> ${(result.cause_probability * 100).toFixed(2)}%`;
     bar.style.width = "100%";
     bar.style.background = "#ddd";
     bar.style.marginTop = "10px";
 
     const fill = document.createElement("div");
-    fill.style.width = `${result.churn_probability * 100}%`;
+    fill.style.width = `${result.cause_probability * 100}%`;
     fill.style.height = "20px";
     fill.style.background = "#f00";
     bar.appendChild(fill);
@@ -89,7 +89,7 @@ function renderResults(result) {
 
   // If no known fields found, fallback to raw JSON display
   if (
-    result.churn_probability === undefined &&
+    result.cause_probability === undefined &&
     result.confidence_score === undefined &&
     !result.segmentation_result &&
     result.customer_flagged === undefined

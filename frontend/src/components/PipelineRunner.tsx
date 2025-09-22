@@ -57,7 +57,7 @@ const PipelineRunner: React.FC<PipelineRunnerProps> = ({
     }
 
     const {
-      churn_probability,
+      cause_probability,
       confidence_score,
       segmentation_result,
       customer_flagged,
@@ -65,10 +65,10 @@ const PipelineRunner: React.FC<PipelineRunnerProps> = ({
 
     return (
       <div>
-        {churn_probability !== undefined && (
+        {cause_probability !== undefined && (
           <div style={{ marginTop: "10px" }}>
-            <strong>Churn Probability:</strong>{" "}
-            {(churn_probability * 100).toFixed(2)}%
+            <strong>Cause Probability:</strong>{" "}
+            {(cause_probability * 100).toFixed(2)}%
             <div
               style={{
                 background: "#ddd",
@@ -81,7 +81,7 @@ const PipelineRunner: React.FC<PipelineRunnerProps> = ({
               <div
                 style={{
                   background: "#f00",
-                  width: `${churn_probability * 100}%`,
+                  width: `${cause_probability * 100}%`,
                   height: "100%",
                   position: "absolute",
                   top: 0,
@@ -113,7 +113,7 @@ const PipelineRunner: React.FC<PipelineRunnerProps> = ({
         )}
 
         {/* Fallback raw JSON */}
-        {churn_probability === undefined &&
+        {cause_probability === undefined &&
           confidence_score === undefined &&
           !segmentation_result &&
           customer_flagged === undefined && (

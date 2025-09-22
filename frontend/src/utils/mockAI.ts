@@ -31,6 +31,21 @@ export const interpretPrompt = (prompt: string): PromptUIResponse | null => {
     };
   }
 
+  if (cleaned.includes("fire")) {
+    return {
+      dataInputs: [{ label: "Safety Protocol", type: "file", id: "protocol_file" },
+          { label: "Safety Inspection", type: "file", id: "inspection_file" }],
+      modelOptions: {
+        label: "Select Fire Model",
+        id: "model_select",
+        options: ["FirePredictionModel", "FirePredictorV2"],
+      },
+      parameters: [
+        { label: "Threshold", type: "number", id: "threshold", default: 0.7 }
+      ],
+    };
+  }
+
   if (cleaned.includes("summarize") && cleaned.includes("audit")) {
     return {
       dataInputs: [{ label: "Audit Logs", type: "file", id: "audit_file" }],

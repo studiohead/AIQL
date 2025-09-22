@@ -26,7 +26,7 @@
           "call_type": "model",
           "action": "churn_predictor_v1",
           "inputs": ["features"],
-          "outputs": ["churn_probability", "confidence_score"],
+          "outputs": ["cause_probability", "confidence_score"],
           "params": {}
         }
       ]

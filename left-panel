@@ -9,7 +9,7 @@
 +------------------------------+
 | 📤 Model Outputs             |
 |------------------------------|
-| 📊 Churn Probability        |
+| 📊 Cause Probability        |
 | 🔒 Trust Score              |
 | 🧩 Embedding Vector         |
 | 🏷️ Sentiment Label         |
