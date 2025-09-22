@@ -5,7 +5,7 @@ const Topbar: React.FC = () => {
   return (
     <header className="topbar">
       <Link to="/Dashboard" className="logo">
-        PIQL
+        Piql
       </Link>
 
       <div className="rightSection">
