@@ -1,0 +1,39 @@
+{
+  "type": "Program",
+  "body": [
+    {
+      "type": "LoadStatement",
+      "variable": "customer_data",
+      "source": "database",
+      "query": "SELECT * FROM customers"
+    },
+    {
+      "type": "PipelineStatement",
+      "variable": "prediction_result",
+      "source": "customer_data",
+      "steps": [
+        {
+          "type": "Operation",
+          "name": "FeatureEngineering",
+          "input": "customer_data",
+          "output": "features",
+          "params": {
+            "features": ["age", "tenure", "support_tickets"]
+          }
+        },
+        {
+          "type": "CallStatement",
+          "call_type": "model",
+          "action": "churn_predictor_v1",
+          "inputs": ["features"],
+          "outputs": ["churn_probability", "confidence_score"],
+          "params": {}
+        }
+      ]
+    },
+    {
+      "type": "ReturnStatement",
+      "variable": "prediction_result"
+    }
+  ]
+}

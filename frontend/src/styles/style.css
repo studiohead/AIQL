@@ -1,0 +1,35 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  background: #f9f9f9;
+}
+
+#pipeline-editor {
+  margin-bottom: 10px;
+}
+
+textarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: 14px;
+  min-height: 300px;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+pre#output {
+  margin-top: 15px;
+  background: #222;
+  color: #eee;
+  padding: 10px;
+  white-space: pre-wrap;
+  max-height: 300px;
+  overflow-y: auto;
+  border-radius: 4px;
+  font-size: 16px;
+  line-height: 1.4;
+}

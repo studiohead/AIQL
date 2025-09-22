@@ -1,0 +1,63 @@
++------------------------------+
+| 🔢 Input Features            |
+|------------------------------|
+| ☑️ Customer ID              |
+| ☑️ Age                      |
+| ☑️ Account Tenure           |
+| ☑️ Avg Purchase Value       |
+| ☑️ Sentiment Score          |
++------------------------------+
+| 📤 Model Outputs             |
+|------------------------------|
+| 📊 Churn Probability        |
+| 🔒 Trust Score              |
+| 🧩 Embedding Vector         |
+| 🏷️ Sentiment Label         |
+| 🧠 Generated Text           |
++------------------------------+
+| 📏 Evaluation Metrics        |
+|------------------------------|
+| ✅ Accuracy                 |
+| 🎯 Precision               |
+| 🚫 False Positive Rate     |
+| 🔍 Explainability Score     |
+| 🤝 Fairness Score           |
++------------------------------+
+| 🧠 AI Models / Functions     |
+|------------------------------|
+| 🤖 ChurnPredictionModel     |
+| 🧱 SegmentCustomers         |
+| 🧠 LLMTrustModel            |
+| 🧾 SummarizeAuditTrail      |
+| 🛡️ DetectPolicyViolations  |
++------------------------------+
+| 🗃️ Data Sources              |
+|------------------------------|
+| 📁 customer_data            |
+| 📁 llm_metrics              |
+| 📁 audit_logs               |
+| 📁 chat_transcripts         |
++------------------------------+
+| ⚙️ Parameters & Settings     |
+|------------------------------|
+| Threshold: 0.7              |
+| Max Tokens: 512             |
+| Explainability = TRUE       |
++------------------------------+
+
+
+[ Data: llm_metrics ]
+        ↓
+[ Model: LLMTrustModel ]
+        ↓
+[ Output: Trust Score ]
+        ↓
+[ Metric: Explainability Score ]
+
+ir more complex pipelines:
+
+[ customer_data ]──▶[ ChurnPredictionModel ]──▶[ SegmentCustomers ]
+                             │
+                             └──▶[ LLMTrustModel ]
+
+

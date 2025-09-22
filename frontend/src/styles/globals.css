@@ -1,0 +1,268 @@
+/* frontend/src/styles/globals.css */
+
+/* CSS Variables for easy theming */
+:root {
+  --color-primary: #00aaff;           /* Bright electric blue */
+  --color-primary-dark: #0077cc;      /* Darker blue */
+  --color-text: #e0e6f0;              /* Almost white */
+  --color-bg: #0b0e14;                /* Very dark blue-black */
+  --color-border: #1f2937;            /* Dark slate */
+  --border-radius: 2px;               /* Sharp corners */
+  --focus-outline: 2px solid var(--color-primary);
+  --shadow-glow: 0 0 10px 3px rgba(0, 170, 255, 0.8);
+  --font-mono: "Fira Mono", "Source Code Pro", monospace;
+}
+
+/* Reset default styles and box sizing */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Base body styles */
+body {
+  font-family: var(--font-mono), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Responsive images and media */
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Links */
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s ease, text-shadow 0.3s ease;
+}
+a:hover,
+a:focus {
+  color: var(--color-primary-dark);
+  text-shadow: 0 0 5px var(--color-primary);
+  outline-offset: 2px;
+  outline: var(--focus-outline);
+}
+
+/* Buttons */
+button {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  cursor: pointer;
+  background-color: var(--color-primary);
+  color: var(--color-bg);
+  border: none;
+  padding: 0.6em 1.2em;
+  border-radius: var(--border-radius);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  box-shadow: 0 0 8px rgba(0, 170, 255, 0.7);
+  transition: background-color 0.25s ease, box-shadow 0.3s ease;
+}
+button:hover,
+button:focus {
+  background-color: var(--color-primary-dark);
+  box-shadow: var(--shadow-glow);
+  outline-offset: 2px;
+  outline: var(--focus-outline);
+  transform: scale(1.05);
+}
+
+/* Inputs, Textareas, Selects */
+input,
+textarea,
+select {
+  font-family: var(--font-mono);
+  border: 1.5px solid var(--color-border);
+  background-color: #121825;
+  color: var(--color-text);
+  border-radius: var(--border-radius);
+  padding: 0.6em 0.85em;
+  transition: border-color 0.25s ease, box-shadow 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+  text-shadow: 0 0 2px rgba(0,0,0,0.4);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #5a677d;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 12px 4px rgba(0, 170, 255, 0.75);
+  outline: none;
+  background-color: #1a2333;
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* File input */
+input[type="file"] {
+  border: 1.5px solid var(--color-border);
+  padding: 0.4em;
+  background-color: #121825;
+  color: var(--color-text);
+}
+
+input[type="file"]:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 12px 4px rgba(0, 170, 255, 0.75);
+  outline: none;
+}
+
+/* Utility container */
+.container {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+/* Utility: visually hidden (for accessibility) */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Layout for entire app */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Topbar */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: #0d111a;
+  border-bottom: 2px solid var(--color-primary);
+  box-shadow: 0 0 15px rgba(0, 170, 255, 0.4);
+  backdrop-filter: saturate(180%) blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+/* Logo */
+.logo {
+  font-size: 1.75rem;
+  font-weight: 900;
+  color: var(--color-primary);
+  text-decoration: none;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  transition: color 0.25s ease, text-shadow 0.3s ease;
+  user-select: none;
+}
+.logo:hover,
+.logo:focus {
+  color: var(--color-primary-dark);
+  text-shadow: 0 0 12px var(--color-primary);
+  outline-offset: 3px;
+  outline: var(--focus-outline);
+}
+
+/* Right Section */
+.rightSection {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+/* Email Text */
+.email {
+  color: #a1afc9;
+  font-size: 1rem;
+  font-weight: 600;
+  user-select: none;
+  letter-spacing: 0.08em;
+}
+
+/* Logout Button */
+.logoutBtn {
+  font-size: 1rem;
+  font-family: var(--font-mono);
+  background-color: transparent;
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary);
+  padding: 0.5em 1.2em;
+  border-radius: var(--border-radius);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  user-select: none;
+  box-shadow: none;
+}
+.logoutBtn:hover,
+.logoutBtn:focus {
+  background-color: var(--color-primary);
+  color: var(--color-bg);
+  box-shadow: var(--shadow-glow);
+  outline-offset: 2px;
+  outline: var(--focus-outline);
+  transform: scale(1.05);
+}
+
+/* Center the dashboard prompt input before sidebar loads */
+.dashboard-centered {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-grow: 1;
+  padding: 1rem;
+  height: 100%;
+}
+
+/* Layout once sidebar is visible */
+.dashboard-layout {
+  display: flex;
+  flex-grow: 1;
+  height: 100%;
+  background-color: #0d111a;
+  box-shadow: inset 0 0 20px #003f7f55;
+}
+
+/* Main content area next to sidebar */
+.dashboard-main {
+  flex-grow: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+  color: var(--color-text);
+  user-select: text;
+}
