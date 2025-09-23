@@ -273,3 +273,10 @@ input[type="file"]:focus {
   color: var(--color-text);
   user-select: text;
 }
+
+.sidebar {
+  width: 450px;
+  padding: 1rem;
+  border-right: 1px solid #ddd;
+  overflow-y: auto;
+}

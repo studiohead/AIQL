@@ -15,14 +15,7 @@ const Sidebar: React.FC<SidebarProps> = ({ uiConfig, userInputs, onChange, onSub
   }
 
   return (
-    <aside
-      style={{
-        width: 300,
-        padding: "1rem",
-        borderRight: "1px solid #ddd",
-        overflowY: "auto",
-      }}
-    >
+    <aside className="sidebar">
       {/* Render Data Inputs */}
       {uiConfig.dataInputs.map(({ label, type, id }) => (
         <div key={id} style={{ marginBottom: "1rem" }}>
