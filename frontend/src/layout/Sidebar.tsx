@@ -1,5 +1,5 @@
 import React from "react";
-import Button from "../components/Button"; // Adjust path if needed
+import Button from "../components/Button";
 import { PromptUIResponse } from "../utils/mockAI";
 
 interface SidebarProps {
@@ -20,22 +20,31 @@ const Sidebar: React.FC<SidebarProps> = ({ uiConfig, userInputs, onChange, onSub
       {uiConfig.dataInputs.map(({ label, type, id }) => (
         <div key={id} style={{ marginBottom: "1rem" }}>
           <label htmlFor={id}>{label}</label>
+
           {type === "file" ? (
-            <input
-              id={id}
-              type="file"
-              onChange={(e) =>
-                onChange({ ...userInputs, [id]: e.target.files ? e.target.files[0] : null })
-              }
-              style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
-            />
+            <div className="file-upload">
+              <label htmlFor={id} className="file-upload-label">
+                Choose File
+              </label>
+              <input
+                id={id}
+                type="file"
+                onChange={(e) =>
+                  onChange({ ...userInputs, [id]: e.target.files ? e.target.files[0] : null })
+                }
+              />
+              {userInputs[id] && (
+                <p className="file-name">
+                  {userInputs[id].name || "File selected"}
+                </p>
+              )}
+            </div>
           ) : (
             <input
               id={id}
               type={type}
               value={userInputs[id] || ""}
               onChange={(e) => onChange({ ...userInputs, [id]: e.target.value })}
-              style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
             />
           )}
         </div>
@@ -49,7 +58,6 @@ const Sidebar: React.FC<SidebarProps> = ({ uiConfig, userInputs, onChange, onSub
             id={uiConfig.modelOptions.id}
             value={userInputs[uiConfig.modelOptions.id] || uiConfig.modelOptions.options[0]}
             onChange={(e) => onChange({ ...userInputs, [uiConfig.modelOptions.id]: e.target.value })}
-            style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
           >
             {uiConfig.modelOptions.options.map((opt) => (
               <option key={opt} value={opt}>
@@ -63,9 +71,11 @@ const Sidebar: React.FC<SidebarProps> = ({ uiConfig, userInputs, onChange, onSub
       {/* Render Parameters if any */}
       {uiConfig.parameters?.map(({ label, type, id, default: def }) => {
         const value = userInputs[id] ?? def ?? "";
+
         return (
           <div key={id} style={{ marginBottom: "1rem" }}>
             <label htmlFor={id}>{label}</label>
+
             {type === "checkbox" ? (
               <input
                 id={id}
@@ -80,7 +90,6 @@ const Sidebar: React.FC<SidebarProps> = ({ uiConfig, userInputs, onChange, onSub
                 type={type}
                 value={value}
                 onChange={(e) => onChange({ ...userInputs, [id]: e.target.value })}
-                style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
               />
             )}
           </div>
@@ -88,11 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({ uiConfig, userInputs, onChange, onSub
       })}
 
       {/* Submit button */}
-      <Button
-        variant="primary"
-        style={{ marginTop: "1rem", width: "100%", padding: "0.75rem" }}
-        onClick={onSubmit}
-      >
+      <Button variant="primary" style={{ marginTop: "1rem", width: "100%" }} onClick={onSubmit}>
         Submit
       </Button>
     </aside>

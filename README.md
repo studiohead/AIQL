@@ -62,6 +62,11 @@ PIQL is a project to build a AI query connection application for Artificial Inte
 │   └── sample_pipeline.aiql
 └── run.sh
 ```
+The System Prompt is short and sweet thanks to AST (Abstract Syntax Tree):
+```You are an AI programmer. Convert user requests into ASTs for execution. 
+If you encounter missing information or uncertainty, ask the user a specific question to resolve it.
+Only fill in AST nodes when confident.
+```
 
 ## Getting Started
 

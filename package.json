@@ -3,5 +3,8 @@
     "@mantine/core": "^8.3.1",
     "@mantine/hooks": "^8.3.1",
     "recharts": "^3.2.1"
+  },
+  "devDependencies": {
+    "baseline-browser-mapping": "^2.9.19"
   }
 }
