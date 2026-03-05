@@ -39,11 +39,11 @@ class AIQLInterpreter:
         variable = stmt["variable"]
         query = stmt.get("query", "")
         print(f"Loading data into '{variable}' with query: {query}")
-        # Simulated data: dict of features per customer (dimension)
+        # Simulated data: dict of features per customer
         data = {
-            "customer_1": {"age": 30, "income": 50000, "region": "north"},
-            "customer_2": {"age": 45, "income": 70000, "region": "south"},
-            "customer_3": {"age": 25, "income": 40000, "region": "east"},
+            "customer_1": {"age": 30, "income": 50000, "region": "north", "tenure": 5, "support_tickets": 2},
+            "customer_2": {"age": 45, "income": 70000, "region": "south", "tenure": 10, "support_tickets": 1},
+            "customer_3": {"age": 25, "income": 40000, "region": "east", "tenure": 2, "support_tickets": 0},
         }
         self.context[variable] = data
         return data
@@ -58,14 +58,14 @@ class AIQLInterpreter:
         combined_result = {}
         for step in stmt["steps"]:
             if step["type"] == "Operation":
+                # normalize "input" to "inputs" for backward compatibility
+                if "input" in step:
+                    step["inputs"] = [step.pop("input")]
                 data = self.execute_operation(step, data)
             elif step["type"] == "CallStatement":
-                # call_statement returns a dict of outputs or None
                 result = self.call_statement(step, input_data=data)
                 if result:
-                    # merge result dict into combined_result
                     combined_result.update(result)
-                # also update data if needed - or keep as is?
             else:
                 raise NotImplementedError(f"Pipeline step '{step['type']}' not supported.")
 
@@ -81,19 +81,14 @@ class AIQLInterpreter:
         name = op["name"]
         print(f"Executing operation '{name}' with input: {input_data}")
 
-        if name == "NormalizeFeatures":
-            # Normalize numeric features to [0,1]
-            normalized = {}
-            for key, features in input_data.items():
-                normalized[key] = {}
-                for feat, val in features.items():
-                    if isinstance(val, (int, float)):
-                        # For example purpose, scale by dividing by max 100000
-                        normalized[key][feat] = val / 100000
-                    else:
-                        normalized[key][feat] = val
-            self.context[op["output"]] = normalized
-            return normalized
+        if name == "FeatureEngineering":
+            # Extract specified features per customer
+            features_list = op.get("params", {}).get("features", [])
+            result = {}
+            for cust_id, cust_data in input_data.items():
+                result[cust_id] = {feat: cust_data.get(feat, None) for feat in features_list}
+            self.context[op["output"]] = result
+            return result
 
         # fallback generic simulation
         result = f"result_of_{name}"
@@ -110,55 +105,35 @@ class AIQLInterpreter:
 
         result = {}
 
-        if call_type == "model" and action == "ChurnPredictionModel":
+        if call_type == "model" and action == "churn_predictor_v1":
             # simulate prediction probabilities per customer
             input_var = inputs[0]
             features = self.context.get(input_var, {})
-            predictions = {}
+            cause_prob = {}
+            confidence = {}
             for cust_id in features:
-                # fake Cause Probability
-                predictions[cust_id] = 0.2 + 0.1 * (hash(cust_id) % 5)  # 0.2 to 0.6 approx
+                # simple hash-based pseudo probabilities
+                p = 0.2 + 0.1 * (hash(cust_id) % 5)  # 0.2 to 0.6
+                cause_prob[cust_id] = round(p, 2)
+                confidence[cust_id] = 0.9  # fixed confidence
 
-            # Assuming single output 'churn_probabilities'
             for output in outputs:
-                if output == "churn_probabilities":
-                    result[output] = predictions
-                    self.context[output] = predictions
+                if output == "cause_probability":
+                    result[output] = cause_prob
+                    self.context[output] = cause_prob
+                elif output == "confidence_score":
+                    result[output] = confidence
+                    self.context[output] = confidence
                 else:
                     result[output] = None
-
-        elif call_type == "function" and action == "SegmentCustomers":
-            # segment customers based on churn_probabilities
-            input_var = inputs[0]
-            probs = self.context.get(input_var, {})
-            segments = {}
-            for cust_id, prob in probs.items():
-                if prob > 0.5:
-                    segments[cust_id] = "high_risk"
-                elif prob > 0.3:
-                    segments[cust_id] = "medium_risk"
-                else:
-                    segments[cust_id] = "low_risk"
-            for output in outputs:
-                if output == "customer_segments":
-                    result[output] = segments
-                    self.context[output] = segments
-                else:
-                    result[output] = None
+                    self.context[output] = None
 
         else:
-            # fallback simulation from existing code
+            # fallback simulation for other models/functions
             if outputs:
                 for output in outputs:
-                    if output == "segment":
-                        result[output] = "high_value"
-                    elif output == "confidence":
-                        result[output] = 0.95
-                    else:
-                        result[output] = 0.9
-
-                for k, v in result.items():
-                    self.context[k] = v
+                    result[output] = 0.9
+                    self.context[output] = 0.9
 
         return result if outputs else None
 
@@ -175,9 +150,7 @@ class AIQLInterpreter:
         return None
 
     def evaluate_expression(self, expr):
-        # Handle the case where expr is a string or primitive (e.g., variable name or literal)
         if isinstance(expr, str):
-            # Treat string as variable name; look up in context
             parts = expr.split(".")
             val = self.context
             for part in parts:
@@ -187,10 +160,8 @@ class AIQLInterpreter:
                     return None
             return val
         elif isinstance(expr, (int, float, bool)):
-            # Return primitives as is
             return expr
 
-        # Now expect expr to be a dict with a "type" key
         t = expr.get("type")
         if t == "BinaryExpression":
             left = self.evaluate_expression(expr["left"])
@@ -223,30 +194,21 @@ class AIQLInterpreter:
 
     def eval_binary(self, op, left, right):
         def try_convert(value):
-            # Try converting to float if it's a string
             if isinstance(value, str):
                 try:
                     return float(value)
                 except ValueError:
-                    return value  # Keep as string if cannot convert
+                    return value
             return value
 
         left_converted = try_convert(left)
         right_converted = try_convert(right)
 
-        print(
-            f"eval_binary: op={op}, left={left_converted}({type(left_converted)}), right={right_converted}({type(right_converted)})"
-        )
-
-        # Check for type compatibility before comparison
-        if (isinstance(left_converted, (int, float)) and isinstance(right_converted, (int, float))):
-            pass  # numeric comparison allowed
-        elif (isinstance(left_converted, str) and isinstance(right_converted, str)):
-            pass  # string comparison allowed
+        if (isinstance(left_converted, (int, float)) and isinstance(right_converted, (int, float))) or \
+           (isinstance(left_converted, str) and isinstance(right_converted, str)):
+            pass
         else:
-            raise TypeError(
-                f"Cannot compare different types: {type(left_converted)} vs {type(right_converted)} for operator '{op}'"
-            )
+            raise TypeError(f"Cannot compare different types: {type(left_converted)} vs {type(right_converted)}")
 
         if op == "<": return left_converted < right_converted
         if op == ">": return left_converted > right_converted
@@ -254,7 +216,6 @@ class AIQLInterpreter:
         if op == ">=": return left_converted >= right_converted
         if op == "==": return left_converted == right_converted
         if op == "!=": return left_converted != right_converted
-
         raise ValueError(f"Unsupported binary operator: {op}")
 
 

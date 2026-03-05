@@ -1,78 +1,128 @@
-# PIQL: Prompt-Infused Query Language
+# AIQL: AI Query Language
 
-PIQL is a project to build a AI query connection application for Artificial Intelligence pipelines.
+**AIQL** is a structured query and pipeline language designed to orchestrate AI workflows safely and efficiently. Pipelines are expressed as **ASTs (Abstract Syntax Trees)**, enabling precise, verifiable execution of multi-step AI tasks.
+
+---
 
 ## Project Structure
 
-- **ast/**: Contains the JSON schema and examples for the PIQL Abstract Syntax Tree.
-- **engine/**: Houses the interpreter and core logic for executing PIQL pipelines.
-- **ui/**: Frontend assets for the visual pipeline builder.
-- **pipelines/**: Stores saved PIQL pipeline files.
+- **ast/**: JSON schema and examples for AIQL ASTs.  
+- **engine/**: Core interpreter and pipeline execution logic.  
+- **frontend/**: Visual pipeline builder and UI components.  
+- **pipelines/**: Saved AIQL pipeline files.
 
 ```
 .
 ├── README.md
 ├── app.py
 ├── ast
-│   ├── piql_schema.json
-│   └── example_pipeline.json
+│ ├── aiql_schema.json
+│ └── example_pipeline.json
 ├── engine
-│   ├── __pycache__
-│   │   └── interpreter.cpython-312.pyc
-│   ├── data_handler.py
-│   ├── interpreter.py
-│   └── model_manager.py
+│ ├── data_handler.py
+│ ├── interpreter.py
+│ └── model_manager.py
 ├── frontend
-│   ├── index.html
-│   ├── package-lock.json
-│   ├── package.json
-│   ├── src
-│   │   ├── App.tsx
-│   │   ├── api
-│   │   │   └── index.ts
-│   │   ├── assets
-│   │   ├── components
-│   │   │   ├── Button.tsx
-│   │   │   ├── PipelineRunner.tsx
-│   │   │   └── PromptInput.tsx
-│   │   ├── containers
-│   │   │   └── Dashboard.tsx
-│   │   ├── hooks
-│   │   │   └── useFetch.ts
-│   │   ├── index.tsx
-│   │   ├── layout
-│   │   │   ├── Sidebar.tsx
-│   │   │   └── Topbar.tsx
-│   │   ├── pages
-│   │   │   └── Home.tsx
-│   │   ├── styles
-│   │   │   ├── globals.css
-│   │   │   └── style.css
-│   │   ├── types
-│   │   │   └── index.d.ts
-│   │   └── utils
-│   │       ├── formatDate.ts
-│   │       └── mockAI.ts
-│   ├── tsconfig.json
-│   └── vite.config.ts
-├── left-panel
-├── package-lock.json
-├── package.json
+│ ├── index.html
+│ ├── src
+│ │ ├── App.tsx
+│ │ ├── components
+│ │ │ ├── Button.tsx
+│ │ │ ├── PipelineRunner.tsx
+│ │ │ └── PromptInput.tsx
+│ │ ├── containers
+│ │ │ └── Dashboard.tsx
+│ │ ├── hooks
+│ │ │ └── useFetch.ts
+│ │ ├── layout
+│ │ │ ├── Sidebar.tsx
+│ │ │ └── Topbar.tsx
+│ │ ├── pages
+│ │ │ └── Home.tsx
+│ │ └── utils
+│ │ ├── formatDate.ts
+│ │ └── mockAI.ts
+│ ├── package.json
+│ └── tsconfig.json
 ├── pipelines
-│   └── sample_pipeline.aiql
+│ └── sample_pipeline.aiql
 └── run.sh
 ```
-The System Prompt is short and sweet thanks to AST (Abstract Syntax Tree):
-```You are an AI programmer. Convert user requests into ASTs for execution. 
-If you encounter missing information or uncertainty, ask the user a specific question to resolve it.
-Only fill in AST nodes when confident.
+
+---
+
+## System Prompt
+
+AIQL leverages the AST for precise control:
+
+
+You are an AI programmer. Convert user requests into ASTs for execution.
+If information is missing or ambiguous, ask a clarifying question.
+Only populate AST nodes when confident.
+
+
+---
+
+## Example AIQL Pipeline
+
 ```
+{
+"type": "Program",
+"body": [
+{
+"type": "LoadStatement",
+"variable": "customer_data",
+"source": "database",
+"query": "SELECT * FROM customers"
+},
+{
+"type": "PipelineStatement",
+"variable": "features",
+"source": "customer_data",
+"steps": [
+{
+"type": "Operation",
+"name": "FeatureEngineering",
+"inputs": ["customer_data"],
+"output": "engineered_features",
+"params": {
+"method": "standardize",
+"features": ["age", "income", "tenure"]
+}
+},
+{
+"type": "CallStatement",
+"call_type": "model",
+"action": "churn_predictor_v1",
+"inputs": ["engineered_features"],
+"outputs": ["cause_probability", "confidence_score"],
+"params": {}
+}
+]
+},
+{
+"type": "ReturnStatement",
+"variable": "cause_probability"
+}
+]
+}
+```
+
+This pipeline:
+
+1. Loads customer data from a database.  
+2. Performs feature engineering to standardize selected columns.  
+3. Runs a model (`churn_predictor_v1`) to predict customer churn probability.  
+4. Returns the primary output (`cause_probability`).
+
+---
 
 ## Getting Started
 
-To get started, navigate into the project directory and begin building out the components.
+1. Navigate to the project directory.  
+2. Build or extend pipelines in **pipelines/** or components in **frontend/** and **engine/**.  
+3. Execute a sample pipeline:
 
-Run the interpreter on an example pipeline:
-
-```bash
+```
 python engine/interpreter.py ast/example_pipeline.json
+```
