@@ -1,230 +1,642 @@
-# engine/interpreter.py
+"""
+engine/interpreter.py
+
+Walks an AIQL Abstract Syntax Tree (AST) and executes each statement
+in order, maintaining a shared execution context (variable store).
+
+Intent support
+--------------
+Intent is optional and progressive. The interpreter handles three levels:
+
+  Level 0 – No intent field at all. Plain dataflow, no planning or fallback.
+  Level 1 – intent is a plain string, e.g. "predict customer churn".
+             Stored for introspection/logging only; no runtime behaviour change.
+  Level 2 – intent is a structured dict with a required "goal" key and
+             optional "success_metric" (evaluated post-run) and "fallback"
+             (a function action triggered when the metric fails).
+
+Intent can appear at two levels of the AST:
+  - Program level       : governs the entire program's success/fallback.
+  - PipelineStatement   : descriptive only — aids planning and logging.
+
+Supported statement types
+--------------------------
+LoadStatement        – Simulates loading a named dataset from a source.
+PipelineStatement    – Chains Operations and CallStatements over a dataset.
+CallStatement        – Invokes a classifier, llm, function, or visualise action.
+ConditionalStatement – Evaluates a boolean expression and branches.
+ReturnStatement      – Resolves a variable from context and returns it.
+"""
+
 import json
 import sys
+from typing import Any
+
 
 class AIQLInterpreter:
-    def __init__(self, ast):
+    """
+    Executes an AIQL program represented as a JSON AST.
+
+    Parameters
+    ----------
+    ast : dict
+        The root AST node. Must be of type ``"Program"`` with a ``"body"``
+        list of statement nodes, and an optional ``"intent"`` field.
+
+    Attributes
+    ----------
+    ast     : dict             – Original AST.
+    context : dict[str, Any]  – Shared variable store across all statements.
+    intent  : dict | None     – Resolved program-level intent (canonical form).
+    """
+
+    def __init__(self, ast: dict) -> None:
         self.ast = ast
-        self.context = {}
+        self.context: dict[str, Any] = {}
+        # Resolve program-level intent once at construction so all methods
+        # can reference self.intent without re-parsing the raw field.
+        self.intent = self._resolve_intent(ast.get("intent"))
 
-    def run(self):
-        if self.ast["type"] != "Program":
-            raise ValueError("AST root must be a Program node.")
-        return self.execute_block(self.ast["body"])
+    # ------------------------------------------------------------------
+    # Intent helpers
+    # ------------------------------------------------------------------
 
-    def execute_block(self, statements):
+    @staticmethod
+    def _resolve_intent(intent_field: "str | dict | None") -> "dict | None":
+        """
+        Normalise the optional ``intent`` field into a canonical dict.
+
+        Three forms are accepted so authors can opt in to as much
+        structure as they need:
+
+        * ``None``  – No intent; pipeline runs as plain dataflow (Level 0).
+        * ``str``   – Soft intent goal string; no runtime effect (Level 1).
+                      Promoted to ``{"goal": <string>}`` for uniform access.
+        * ``dict``  – Structured intent; must contain ``"goal"`` (Level 2).
+                      May also contain ``"success_metric"`` and ``"fallback"``.
+
+        Parameters
+        ----------
+        intent_field : str | dict | None
+            Raw value of any ``"intent"`` key in the AST.
+
+        Returns
+        -------
+        dict | None
+            Canonical intent dict, or ``None`` when absent.
+
+        Raises
+        ------
+        ValueError  If a dict intent is missing the required ``"goal"`` key.
+        TypeError   If the intent field is an unexpected type.
+        """
+        if intent_field is None:
+            return None
+        if isinstance(intent_field, str):
+            # Promote bare string so downstream code always checks one key.
+            return {"goal": intent_field}
+        if isinstance(intent_field, dict):
+            if "goal" not in intent_field:
+                raise ValueError("Structured intent must include a 'goal' key.")
+            return intent_field
+        raise TypeError(
+            f"'intent' must be a string or object, got {type(intent_field).__name__}."
+        )
+
+    def _check_intent_success(self, result: Any) -> Any:
+        """
+        Evaluate the program-level ``success_metric`` against the final
+        result and trigger ``fallback`` when the metric is not met.
+
+        Only active for Level 2 intent (structured dict that declares a
+        ``success_metric``). Levels 0 and 1 pass through unchanged.
+
+        The metric is a string expression evaluated via
+        ``evaluate_expression`` after injecting ``result`` into a
+        temporary context snapshot under the key ``"result"``, so
+        metrics can reference top-level context variables *or* the
+        result directly:
+
+            ``"confidence_score >= 0.7"``   – references a context variable
+            ``"result.score >= 0.7"``        – references the returned value
+
+        Parameters
+        ----------
+        result : Any
+            The value returned by the program body.
+
+        Returns
+        -------
+        Any
+            ``result`` if the metric passes or is absent; otherwise the
+            return value of the fallback CallStatement, or ``None`` if
+            no fallback is declared.
+        """
+        if not self.intent or "success_metric" not in self.intent:
+            # Level 0 / Level 1 — nothing to enforce.
+            return result
+
+        # Temporarily expose result so the metric expression can reference it.
+        snapshot = {**self.context, "result": result}
+        original_context = self.context
+        self.context = snapshot
+
+        try:
+            passed = self.evaluate_expression(self.intent["success_metric"])
+        finally:
+            # Always restore context, even if evaluate_expression raises.
+            self.context = original_context
+
+        goal = self.intent["goal"]
+
+        if passed:
+            print(f"[Intent] '{goal}' — success metric passed.")
+            return result
+
+        print(f"[Intent] '{goal}' — success metric FAILED.")
+        fallback_action = self.intent.get("fallback")
+
+        if fallback_action:
+            print(f"[Intent] Triggering fallback: '{fallback_action}'")
+            # Dispatch as a zero-input function CallStatement so the
+            # existing call_statement handler deals with it uniformly.
+            fallback_stmt = {
+                "type":      "CallStatement",
+                "call_type": "function",
+                "action":    fallback_action,
+                "inputs":    [],
+                "outputs":   ["fallback_result"],
+                "params":    {"reason": "intent_success_metric_failed"},
+            }
+            return self.call_statement(fallback_stmt)
+
+        # Metric failed and no fallback declared.
+        return None
+
+    # ------------------------------------------------------------------
+    # Entry point
+    # ------------------------------------------------------------------
+
+    def run(self) -> Any:
+        """
+        Begin execution at the program root.
+
+        After the body completes the program-level intent success metric
+        is evaluated (if present) before the final result is returned.
+
+        Returns
+        -------
+        Any
+            The post-intent-checked value of the last / return statement.
+
+        Raises
+        ------
+        ValueError  If the AST root is not a ``"Program"`` node.
+        """
+        if self.ast.get("type") != "Program":
+            raise ValueError(
+                f"AST root must be a Program node, got '{self.ast.get('type')}'."
+            )
+
+        if self.intent:
+            print(f"[Program] Intent: '{self.intent['goal']}'")
+
+        result = self.execute_block(self.ast["body"])
+
+        # Post-run hook: evaluate success metric and route to fallback if needed.
+        return self._check_intent_success(result)
+
+    # ------------------------------------------------------------------
+    # Block / statement dispatch
+    # ------------------------------------------------------------------
+
+    def execute_block(self, statements: list) -> Any:
+        """
+        Execute a list of statements sequentially.
+
+        Stops early and propagates the return value as soon as a
+        ``ReturnStatement`` is encountered.
+
+        Parameters
+        ----------
+        statements : list
+            Ordered list of AST statement nodes.
+
+        Returns
+        -------
+        Any
+            Value of the last executed statement, or the value resolved
+            by a ``ReturnStatement`` if one is reached first.
+        """
         result = None
         for stmt in statements:
             result = self.execute_statement(stmt)
             if stmt["type"] == "ReturnStatement":
+                # Propagate immediately — do not execute remaining statements.
                 return result
         return result
 
-    def execute_statement(self, stmt):
-        t = stmt["type"]
-        if t == "LoadStatement":
-            return self.load_statement(stmt)
-        elif t == "PipelineStatement":
-            return self.pipeline_statement(stmt)
-        elif t == "CallStatement":
-            return self.call_statement(stmt)
-        elif t == "ConditionalStatement":
-            return self.conditional_statement(stmt)
-        elif t == "ReturnStatement":
-            return self.context.get(stmt["variable"])
-        else:
-            raise NotImplementedError(f"Statement type '{t}' not implemented.")
+    def execute_statement(self, stmt: dict) -> Any:
+        """
+        Dispatch a single AST statement node to its handler.
 
-    def load_statement(self, stmt):
-        variable = stmt["variable"]
-        query = stmt.get("query", "")
-        print(f"Loading data into '{variable}' with query: {query}")
-        # Simulated data: dict of features per customer
-        data = {
-            "customer_1": {"age": 30, "income": 50000, "region": "north", "tenure": 5, "support_tickets": 2},
-            "customer_2": {"age": 45, "income": 70000, "region": "south", "tenure": 10, "support_tickets": 1},
-            "customer_3": {"age": 25, "income": 40000, "region": "east", "tenure": 2, "support_tickets": 0},
+        Parameters
+        ----------
+        stmt : dict
+            AST node whose ``"type"`` key identifies the statement kind.
+
+        Returns
+        -------
+        Any
+            Whatever the individual handler returns.
+
+        Raises
+        ------
+        NotImplementedError  For unrecognised statement types.
+        """
+        t = stmt["type"]
+        handlers = {
+            "LoadStatement":        self.load_statement,
+            "PipelineStatement":    self.pipeline_statement,
+            "CallStatement":        self.call_statement,
+            "ConditionalStatement": self.conditional_statement,
+            # ReturnStatement resolves the variable directly from context.
+            "ReturnStatement":      lambda s: self.context.get(s["variable"]),
         }
+        if t not in handlers:
+            raise NotImplementedError(f"Statement type '{t}' is not implemented.")
+        return handlers[t](stmt)
+
+    # ------------------------------------------------------------------
+    # Statement handlers
+    # ------------------------------------------------------------------
+
+    def load_statement(self, stmt: dict) -> dict:
+        """
+        Simulate loading a dataset and store it in the context.
+
+        In production this would connect to the declared ``source``
+        (database, file, API) and execute ``query``. The simulation
+        produces a synthetic mapping of ``num_items`` empty-dict items
+        so that downstream steps always receive a valid input.
+
+        Parameters
+        ----------
+        stmt : dict
+            A ``LoadStatement`` node. Relevant keys:
+            ``variable``, ``source``, ``query``, optional ``params``.
+
+        Returns
+        -------
+        dict
+            Mapping ``item_<n>`` → ``{}`` stored under ``variable``.
+        """
+        variable  = stmt["variable"]
+        source    = stmt.get("source", "generic")
+        query     = stmt.get("query", "")
+        num_items = stmt.get("params", {}).get("num_items", 3)
+
+        print(
+            f"[LoadStatement] Loading '{variable}' from '{source}'"
+            + (f" | query: {query}" if query else "")
+        )
+
+        # Synthetic items — replace with real I/O in production.
+        data = {f"item_{i + 1}": {} for i in range(num_items)}
         self.context[variable] = data
         return data
 
-    def pipeline_statement(self, stmt):
+    def pipeline_statement(self, stmt: dict) -> Any:
+        """
+        Execute a series of pipeline steps over a source variable.
+
+        The pipeline's own ``intent`` field (if present) is resolved and
+        logged. Pipeline-level intent is **descriptive only** and never
+        triggers fallback logic — that is reserved for Program-level intent.
+
+        Steps flow left-to-right: each ``Operation`` transforms the
+        cursor dataset in-place; each ``CallStatement`` writes named
+        output variables into context and accumulates them separately.
+
+        Parameters
+        ----------
+        stmt : dict
+            A ``PipelineStatement`` node. Relevant keys:
+            ``variable``, ``source``, ``steps``, optional ``intent``.
+
+        Returns
+        -------
+        Any
+            Final value stored under ``stmt["variable"]`` in context.
+
+        Raises
+        ------
+        ValueError          If the source variable is absent from context.
+        NotImplementedError If an unsupported step type is encountered.
+        """
         source_var = stmt["source"]
-        variable = stmt["variable"]
+        variable   = stmt["variable"]
+
+        # Pipeline-level intent: log only, no metric evaluation.
+        pipeline_intent = self._resolve_intent(stmt.get("intent"))
+        if pipeline_intent:
+            print(f"[PipelineStatement] Intent: '{pipeline_intent['goal']}'")
+
         data = self.context.get(source_var)
         if data is None:
-            raise ValueError(f"Source variable '{source_var}' not found.")
+            raise ValueError(
+                f"Pipeline source variable '{source_var}' not found in context."
+            )
 
-        combined_result = {}
+        # Named outputs emitted by CallStatement steps accumulate here.
+        call_outputs: dict = {}
+
         for step in stmt["steps"]:
             if step["type"] == "Operation":
-                # normalize "input" to "inputs" for backward compatibility
-                if "input" in step:
+                # Normalise legacy single-input shorthand to the list form.
+                if "input" in step and "inputs" not in step:
                     step["inputs"] = [step.pop("input")]
                 data = self.execute_operation(step, data)
+
             elif step["type"] == "CallStatement":
+                # CallStatements write named outputs into context; collect
+                # them so they can be surfaced as the pipeline's result.
                 result = self.call_statement(step, input_data=data)
                 if result:
-                    combined_result.update(result)
+                    call_outputs.update(result)
+
             else:
-                raise NotImplementedError(f"Pipeline step '{step['type']}' not supported.")
+                raise NotImplementedError(
+                    f"Pipeline step type '{step['type']}' is not supported."
+                )
 
-        # store combined result dict under pipeline variable
-        if combined_result:
-            self.context[variable] = combined_result
-        else:
-            self.context[variable] = data
+        # Surface CallStatement outputs when present; otherwise the final
+        # transformed dataset is the pipeline's result.
+        final = call_outputs if call_outputs else data
+        self.context[variable] = final
+        return final
 
-        return self.context[variable]
+    def execute_operation(self, op: dict, input_data: dict) -> dict:
+        """
+        Apply a named transform to ``input_data`` and return the result.
 
-    def execute_operation(self, op, input_data):
+        Only ``FeatureEngineering`` has a concrete implementation; all
+        other names fall through to a generic placeholder.
+
+        Parameters
+        ----------
+        op         : dict – ``Operation`` node: ``name``, ``output``, ``params``.
+        input_data : dict – Item mapping flowing through the pipeline.
+
+        Returns
+        -------
+        dict
+            Transformed mapping stored in ``self.context[op["output"]]``.
+        """
         name = op["name"]
-        print(f"Executing operation '{name}' with input: {input_data}")
+        print(f"[Operation] '{name}' over {len(input_data)} item(s).")
 
         if name == "FeatureEngineering":
-            # Extract specified features per customer
-            features_list = op.get("params", {}).get("features", [])
-            result = {}
-            for cust_id, cust_data in input_data.items():
-                result[cust_id] = {feat: cust_data.get(feat, None) for feat in features_list}
-            self.context[op["output"]] = result
-            return result
+            features = op.get("params", {}).get("features", [])
+            result = {
+                item_id: {feat: item_data.get(feat) for feat in features}
+                for item_id, item_data in input_data.items()
+            }
+        else:
+            # Generic no-op placeholder — replace with real operation logic.
+            result = {item_id: f"{name}_result" for item_id in input_data}
 
-        # fallback generic simulation
-        result = f"result_of_{name}"
         self.context[op["output"]] = result
         return result
 
-    def call_statement(self, stmt, input_data=None):
-        action = stmt["action"]
+    def call_statement(self, stmt: dict, input_data: "dict | None" = None) -> "dict | None":
+        """
+        Invoke a classifier, llm, function, or visualisation action.
+
+        Simulated output per ``call_type``:
+
+        * ``"classifier"`` / ``"model"`` – Score of ``0.5`` per item.
+          Replace with real model inference.
+        * ``"llm"``                       – Placeholder explanation string.
+          Replace with real LLM API call.
+        * ``"function"``                  – ``"<action>_result"`` per item.
+        * ``"visualize"``                 – Not yet implemented; outputs ``None``.
+
+        Parameters
+        ----------
+        stmt       : dict       – ``CallStatement`` node.
+        input_data : dict | None – Pre-resolved input. When ``None`` the first
+                                   element of ``stmt["inputs"]`` is looked up
+                                   in context.
+
+        Returns
+        -------
+        dict | None
+            Mapping of output-name → per-item result, or ``None`` when the
+            statement declares no outputs.
+        """
+        action    = stmt["action"]
         call_type = stmt["call_type"]
-        inputs = stmt["inputs"]
-        outputs = stmt.get("outputs")
+        inputs    = stmt["inputs"]
+        outputs   = stmt.get("outputs") or []
 
-        print(f"Calling {call_type} '{action}' with inputs: {inputs}")
+        print(f"[CallStatement] {call_type}::{action} | inputs={inputs} outputs={outputs}")
 
-        result = {}
+        if input_data is None:
+            input_data = self.context.get(inputs[0], {}) if inputs else {}
 
-        if call_type == "model" and action == "churn_predictor_v1":
-            # simulate prediction probabilities per customer
-            input_var = inputs[0]
-            features = self.context.get(input_var, {})
-            cause_prob = {}
-            confidence = {}
-            for cust_id in features:
-                # simple hash-based pseudo probabilities
-                p = 0.2 + 0.1 * (hash(cust_id) % 5)  # 0.2 to 0.6
-                cause_prob[cust_id] = round(p, 2)
-                confidence[cust_id] = 0.9  # fixed confidence
+        result: dict = {}
 
-            for output in outputs:
-                if output == "cause_probability":
-                    result[output] = cause_prob
-                    self.context[output] = cause_prob
-                elif output == "confidence_score":
-                    result[output] = confidence
-                    self.context[output] = confidence
-                else:
-                    result[output] = None
-                    self.context[output] = None
+        for output in outputs:
+            if call_type in ("classifier", "model"):
+                # Neutral placeholder score; replace with real inference.
+                per_item: Any = {item_id: 0.5 for item_id in input_data}
 
-        else:
-            # fallback simulation for other models/functions
-            if outputs:
-                for output in outputs:
-                    result[output] = 0.9
-                    self.context[output] = 0.9
+            elif call_type == "llm":
+                # Placeholder text; replace with a real LLM API call.
+                per_item = {
+                    item_id: f"{action}_explanation" for item_id in input_data
+                }
+
+            elif call_type == "function":
+                per_item = {
+                    item_id: f"{action}_result" for item_id in input_data
+                }
+
+            else:
+                # visualize or unknown call_type — not yet implemented.
+                per_item = None
+
+            result[output] = per_item
+            self.context[output] = per_item
 
         return result if outputs else None
 
-    def conditional_statement(self, stmt):
-        cond = stmt["condition"]
-        if self.evaluate_expression(cond):
-            print("Condition true: executing then_body")
+    def conditional_statement(self, stmt: dict) -> Any:
+        """
+        Evaluate a boolean condition and execute the matching branch.
+
+        Parameters
+        ----------
+        stmt : dict
+            A ``ConditionalStatement`` node with ``condition``,
+            ``then_body``, and optional ``else_body``.
+
+        Returns
+        -------
+        Any
+            Result of the executed branch, or ``None`` if the else branch
+            is absent and the condition is false.
+        """
+        if self.evaluate_expression(stmt["condition"]):
+            print("[ConditionalStatement] Condition true — executing then_body.")
             return self.execute_block(stmt["then_body"])
-        else:
-            else_body = stmt.get("else_body")
-            if else_body:
-                print("Condition false: executing else_body")
-                return self.execute_block(else_body)
+
+        else_body = stmt.get("else_body")
+        if else_body:
+            print("[ConditionalStatement] Condition false — executing else_body.")
+            return self.execute_block(else_body)
+
         return None
 
-    def evaluate_expression(self, expr):
-        if isinstance(expr, str):
-            parts = expr.split(".")
-            val = self.context
-            for part in parts:
-                if isinstance(val, dict) and part in val:
-                    val = val[part]
-                else:
-                    return None
-            return val
-        elif isinstance(expr, (int, float, bool)):
+    # ------------------------------------------------------------------
+    # Expression evaluation
+    # ------------------------------------------------------------------
+
+    def evaluate_expression(self, expr: Any) -> Any:
+        """
+        Recursively evaluate an AIQL expression node.
+
+        Handles ``BinaryExpression``, ``LogicalExpression``, ``Variable``,
+        ``Literal``, bare scalar values, and dot-notation path strings.
+
+        Parameters
+        ----------
+        expr : Any
+            An expression node (dict), scalar (int/float/bool), or a
+            dot-notation path string (e.g. ``"result.confidence_score"``).
+
+        Returns
+        -------
+        Any
+            The evaluated value.
+
+        Raises
+        ------
+        NotImplementedError  For unrecognised expression node types.
+        """
+        if isinstance(expr, (int, float, bool)):
             return expr
 
+        if isinstance(expr, str):
+            # Treat as a dot-notation context path.
+            return self._resolve_path(expr, self.context)
+
         t = expr.get("type")
+
         if t == "BinaryExpression":
-            left = self.evaluate_expression(expr["left"])
+            left  = self.evaluate_expression(expr["left"])
             right = self.evaluate_expression(expr["right"])
-            return self.eval_binary(expr["operator"], left, right)
-        elif t == "LogicalExpression":
-            op = expr["operator"]
+            return self._eval_binary(expr["operator"], left, right)
+
+        if t == "LogicalExpression":
+            op       = expr["operator"]
             operands = [self.evaluate_expression(o) for o in expr["operands"]]
-            if op == "AND":
-                return all(operands)
-            elif op == "OR":
-                return any(operands)
-            elif op == "NOT":
-                return not operands[0]
-            else:
-                raise ValueError(f"Unknown logical operator: {op}")
-        elif t == "Variable":
-            parts = expr["name"].split(".")
-            val = self.context
-            for part in parts:
-                if isinstance(val, dict) and part in val:
-                    val = val[part]
-                else:
-                    return None
-            return val
-        elif t == "Literal":
+            if op == "AND": return all(operands)
+            if op == "OR":  return any(operands)
+            if op == "NOT": return not operands[0]
+
+        if t == "Variable":
+            return self._resolve_path(expr["name"], self.context)
+
+        if t == "Literal":
             return expr["value"]
-        else:
-            raise NotImplementedError(f"Expression type '{t}' not implemented.")
 
-    def eval_binary(self, op, left, right):
-        def try_convert(value):
-            if isinstance(value, str):
+        raise NotImplementedError(f"Expression type '{t}' is not implemented.")
+
+    @staticmethod
+    def _resolve_path(path: str, root: dict) -> Any:
+        """
+        Walk a dot-notation path through a nested dict.
+
+        Parameters
+        ----------
+        path : str  – Dot-separated key path, e.g. ``"result.score"``.
+        root : dict – Dict to start walking from.
+
+        Returns
+        -------
+        Any
+            Resolved value, or ``None`` if any segment is missing.
+        """
+        val = root
+        for part in path.split("."):
+            if isinstance(val, dict) and part in val:
+                val = val[part]
+            else:
+                return None
+        return val
+
+    @staticmethod
+    def _eval_binary(op: str, left: Any, right: Any) -> bool:
+        """
+        Evaluate a binary comparison, coercing numeric strings to float.
+
+        Parameters
+        ----------
+        op    : str – One of ``< > <= >= == !=``.
+        left  : Any – Left-hand value.
+        right : Any – Right-hand value.
+
+        Returns
+        -------
+        bool
+
+        Raises
+        ------
+        TypeError   If operands are incompatible after coercion.
+        ValueError  If the operator is not recognised.
+        """
+        def _coerce(v: Any) -> Any:
+            if isinstance(v, str):
                 try:
-                    return float(value)
+                    return float(v)
                 except ValueError:
-                    return value
-            return value
+                    return v
+            return v
 
-        left_converted = try_convert(left)
-        right_converted = try_convert(right)
+        l, r = _coerce(left), _coerce(right)
 
-        if (isinstance(left_converted, (int, float)) and isinstance(right_converted, (int, float))) or \
-           (isinstance(left_converted, str) and isinstance(right_converted, str)):
-            pass
-        else:
-            raise TypeError(f"Cannot compare different types: {type(left_converted)} vs {type(right_converted)}")
+        if type(l) != type(r):
+            raise TypeError(
+                f"Cannot compare {type(l).__name__} with {type(r).__name__}."
+            )
 
-        if op == "<": return left_converted < right_converted
-        if op == ">": return left_converted > right_converted
-        if op == "<=": return left_converted <= right_converted
-        if op == ">=": return left_converted >= right_converted
-        if op == "==": return left_converted == right_converted
-        if op == "!=": return left_converted != right_converted
-        raise ValueError(f"Unsupported binary operator: {op}")
+        ops = {
+            "<":  lambda a, b: a < b,
+            ">":  lambda a, b: a > b,
+            "<=": lambda a, b: a <= b,
+            ">=": lambda a, b: a >= b,
+            "==": lambda a, b: a == b,
+            "!=": lambda a, b: a != b,
+        }
+        if op not in ops:
+            raise ValueError(f"Unsupported binary operator: '{op}'.")
+        return ops[op](l, r)
 
+
+# ----------------------------------------------------------------------
+# CLI entry point
+# ----------------------------------------------------------------------
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python interpreter.py <pipeline.json>")
-        exit(1)
+        sys.exit(1)
+
     with open(sys.argv[1]) as f:
         ast = json.load(f)
+
     interpreter = AIQLInterpreter(ast)
     result = interpreter.run()
-    print("Pipeline execution result:", result)
+    print("Pipeline result:", result)

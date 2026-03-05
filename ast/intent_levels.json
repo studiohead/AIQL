@@ -1,0 +1,139 @@
+{
+  "_comment": "Three intent levels in one file for illustration.",
+
+  "examples": [
+
+    {
+      "_level": 0,
+      "_description": "No intent — plain dataflow, no planning or fallback.",
+      "type": "Program",
+      "body": [
+        {
+          "type": "LoadStatement",
+          "variable": "customer_data",
+          "source": "database",
+          "query": "SELECT * FROM customers"
+        },
+        {
+          "type": "ReturnStatement",
+          "variable": "customer_data"
+        }
+      ]
+    },
+
+    {
+      "_level": 1,
+      "_description": "Soft intent — a plain string. An LLM planner can read\n                 this to validate or narrate the pipeline. No runtime\n                 behaviour changes.",
+      "type": "Program",
+      "intent": "predict customer churn",
+      "body": [
+        {
+          "type": "LoadStatement",
+          "variable": "customer_data",
+          "source": "database",
+          "query": "SELECT * FROM customers"
+        },
+        {
+          "type": "PipelineStatement",
+          "variable": "predictions",
+          "source": "customer_data",
+          "intent": "score each customer for likelihood to churn",
+          "steps": [
+            {
+              "type": "CallStatement",
+              "call_type": "classifier",
+              "action": "churn_predictor_v1",
+              "inputs": ["customer_data"],
+              "outputs": ["churn_probability"],
+              "params": { "threshold": 0.5 }
+            }
+          ]
+        },
+        {
+          "type": "ReturnStatement",
+          "variable": "churn_probability"
+        }
+      ]
+    },
+
+    {
+      "_level": 2,
+      "_description": "Structured intent — full object with success_metric and\n                 fallback. The runtime validates the metric and routes\n                 to the fallback action on failure.",
+      "type": "Program",
+      "intent": {
+        "goal": "predict_customer_churn",
+        "description": "Score active customers for churn risk with high confidence.",
+        "success_metric": "confidence_score >= 0.7",
+        "fallback": "escalate_to_human_review"
+      },
+      "body": [
+        {
+          "type": "LoadStatement",
+          "variable": "customer_data",
+          "source": "database",
+          "query": "SELECT * FROM customers WHERE active = true",
+          "schema": {
+            "age":    { "type": "int",   "nullable": false },
+            "income": { "type": "float", "nullable": true  },
+            "tenure": { "type": "int",   "nullable": false }
+          }
+        },
+        {
+          "type": "PipelineStatement",
+          "variable": "predictions",
+          "source": "customer_data",
+          "intent": "transform raw records into churn risk scores with explanations",
+          "steps": [
+            {
+              "type": "Operation",
+              "name": "FeatureEngineering",
+              "inputs": ["customer_data"],
+              "output": "engineered_features",
+              "params": {
+                "method": "standardize",
+                "features": ["age", "income", "tenure"],
+                "handle_nulls": "mean_impute"
+              },
+              "output_schema": {
+                "age":    { "type": "float" },
+                "income": { "type": "float" },
+                "tenure": { "type": "float" }
+              }
+            },
+            {
+              "type": "CallStatement",
+              "call_type": "classifier",
+              "action": "churn_predictor_v1",
+              "inputs": ["engineered_features"],
+              "outputs": ["churn_probability", "confidence_score"],
+              "output_schema": {
+                "churn_probability": { "type": "float", "range": [0, 1] },
+                "confidence_score":  { "type": "float", "range": [0, 1] }
+              },
+              "params": { "threshold": 0.5, "explain": true }
+            },
+            {
+              "type": "CallStatement",
+              "call_type": "llm",
+              "action": "churn_cause_explainer",
+              "inputs": ["engineered_features", "churn_probability"],
+              "outputs": ["cause_explanation"],
+              "output_schema": {
+                "cause_explanation": { "type": "string" }
+              },
+              "params": {
+                "prompt_template": "churn_cause_v2",
+                "max_tokens": 200
+              }
+            }
+          ]
+        },
+        {
+          "type": "ReturnStatement",
+          "variable": "churn_probability"
+        }
+      ]
+    }
+
+  ]
+}
