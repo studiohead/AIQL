@@ -1,3 +1,5 @@
+<img width="2420" height="1460" alt="image" src="https://github.com/user-attachments/assets/384c5994-eecc-44d8-8108-25e24d52f4c0" />
+
 # AIQL: AI Query Language
 
 AIQL is a structured query and pipeline language designed to orchestrate AI workflows safely and efficiently. Pipelines are expressed as ASTs (Abstract Syntax Trees), enabling precise, verifiable execution of multi-step AI tasks. This design is a core component of **KAI: Kernel AI Operating System**: https://github.com/studiohead/KAI
