@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "AIQL AST Schema",
+  "title": "AIQL AST Schema - Level 3 Enabled",
   "type": "object",
   "required": ["type", "body"],
   "properties": {
@@ -8,6 +8,7 @@
       "type": "string",
       "enum": ["Program"]
     },
+    "intent": { "$ref": "#/definitions/Intent" },
     "body": {
       "type": "array",
       "items": {
@@ -16,6 +17,22 @@
     }
   },
   "definitions": {
+    "Intent": {
+      "type": "object",
+      "required": ["goal"],
+      "properties": {
+        "goal": { "type": "string" },
+        "description": { "type": "string" },
+        "success_metric": { "type": "string" },
+        "strategy": { 
+          "type": "string", 
+          "enum": ["static", "fallback", "recursive_repair"] 
+        },
+        "max_retries": { "type": "integer", "default": 0 },
+        "repair_agent": { "type": "string" },
+        "fallback": { "type": "string" }
+      }
+    },
     "Statement": {
       "type": "object",
       "oneOf": [
@@ -45,6 +62,7 @@
         "type": { "const": "PipelineStatement" },
         "variable": { "type": "string" },
         "source": { "type": "string" },
+        "intent": { "oneOf": [{ "type": "string" }, { "$ref": "#/definitions/Intent" }] },
         "steps": {
           "type": "array",
           "items": { "$ref": "#/definitions/PipelineStep" }
@@ -71,7 +89,7 @@
           "items": { "type": "string" },
           "minItems": 1
         },
-        "output": { "type": "string" },
+        "output": { "string": "string" },
         "params": { "type": "object" },
         "metadata": { "$ref": "#/definitions/Metadata" }
       },
@@ -84,7 +102,7 @@
         "type": { "const": "CallStatement" },
         "call_type": {
           "type": "string",
-          "enum": ["model", "function", "visualize"]
+          "enum": ["llm", "classifier", "model", "function", "visualize"]
         },
         "action": { "type": "string" },
         "inputs": {
@@ -143,7 +161,7 @@
         "type": { "const": "BinaryExpression" },
         "operator": {
           "type": "string",
-          "enum": ["<", ">", "<=", ">=", "==", "!=", "!="]
+          "enum": ["<", ">", "<=", ">=", "==", "!=", "contains"]
         },
         "left": { "$ref": "#/definitions/Expression" },
         "right": { "$ref": "#/definitions/Expression" }
